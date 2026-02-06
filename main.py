@@ -360,21 +360,25 @@ if __name__ == "__main__":
 
     def status(self):
         """Show status."""
+        # Reload config from file to get latest values
+        self.config = TrainingConfig.from_file(self.config_file)
+
         print(f"📊 DPO Implementation Status")
         print(f"")
 
         print(f"Config file: {self.config_file}")
-        if self.config_file.exists():
-            print(f"")
-            print(f"Configuration:")
-            print(f"   Model: {self.config.model_name or 'Not set'}")
-            print(f"   Dataset: {self.config.dataset_source or 'Not set'}")
-            print(f"   QLoRA Rank: {self.config.lora_rank}")
-            print(f"   QLoRA Alpha: {self.config.lora_alpha}")
-            print(f"   Beta: {self.config.beta}")
-            print(f"   Learning Rate: {self.config.learning_rate}")
-            print(f"   Epochs: {self.config.epochs}")
-            print(f"   Output: {self.config.output_dir}")
+        print(f"  Exists: {self.config_file.exists()}")
+        print(f"")
+
+        print(f"Configuration:")
+        print(f"   Model: {self.config.model_name or 'Not set'}")
+        print(f"   Dataset: {self.config.dataset_source or 'Not set'}")
+        print(f"   QLoRA Rank: {self.config.lora_rank}")
+        print(f"   QLoRA Alpha: {self.config.lora_alpha}")
+        print(f"   Beta: {self.config.beta}")
+        print(f"   Learning Rate: {self.config.learning_rate}")
+        print(f"   Epochs: {self.config.epochs}")
+        print(f"   Output: {self.config.output_dir}")
 
         print(f"")
         print(f"Data directory: {self.data_dir}")
