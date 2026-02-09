@@ -37,10 +37,10 @@ Based on Nova's research: [Post-Training Techniques for LLMs](https://github.com
 - **DPO Parameters:** Beta, learning rate, epochs
 - **Training Settings:** Batch size, max length, gradient accumulation
 
-### 📈 Evaluation (Placeholder)
-- **Sample Generation:** Side-by-side comparison
-- **Quality Metrics:** Placeholder for human/automated evaluation
-- **Baseline Comparison:** DPO vs unaligned model
+### 📈 Evaluation
+- **Sample Generation:** Generate responses from trained model
+- **Quality Metrics:** Basic metrics (length, word length, punctuation)
+- **Baseline Comparison:** Side-by-side DPO vs baseline comparison
 
 ## Installation
 
@@ -136,7 +136,7 @@ dpo-train train
 dpo-train evaluate
 ```
 
-(Placeholder for evaluation implementation)
+Generates responses to test prompts and calculates quality metrics.
 
 ## Commands
 
@@ -165,10 +165,10 @@ dpo-train train --beta 0.05       # Override beta
 ```
 
 ### `dpo-train evaluate`
-Evaluate DPO model (placeholder).
+Evaluate DPO model with sample generation and quality metrics.
 
 ### `dpo-train compare`
-Compare DPO vs baseline (placeholder).
+Compare DPO vs baseline with side-by-side response generation.
 
 ### `dpo-train status`
 Show project status.
@@ -385,13 +385,21 @@ MIT License - See LICENSE file
 
 ## Version History
 
+### 1.1.0 (2026-02-09)
+- Implemented evaluation with sample generation
+- Implemented comparison with baseline model
+- Added quality metrics (length, word length, punctuation)
+- Generated evaluation and comparison reports in JSONL format
+- Fixed torch import for non-GPU environments
+- Updated documentation with evaluation details
+
 ### 1.0.0 (2026-02-05)
 - Initial release
 - Hugging Face TRL integration
 - QLoRA support (4-bit, rank=8)
 - Dataset preparation (HH-RLHF, WebGPT, SHP)
 - Training pipeline with configurable parameters
-- Status and evaluation placeholders
+- Status command with project information
 
 ## Author
 

@@ -29,6 +29,12 @@ from datetime import datetime
 from pathlib import Path
 from typing import Dict, List, Optional
 
+# torch is imported lazily to avoid dependency issues in non-GPU environments
+try:
+    import torch
+except ImportError:
+    torch = None
+
 
 @dataclass
 class TrainingConfig:
@@ -348,15 +354,216 @@ if __name__ == "__main__":
 
     def evaluate(self):
         """Evaluate DPO model."""
+        if not self.output_dir.exists():
+            print(f"❌ No trained model found in {self.output_dir}")
+            print(f"   Run: dpo-train train")
+            return
+
         print(f"📊 Evaluating DPO model...")
-        print(f"   This is a placeholder for evaluation")
-        print(f"   Implement human evaluation and automated metrics")
+        print(f"")
+
+        # Test prompts for evaluation
+        test_prompts = [
+            "What is the capital of France?",
+            "Explain quantum computing in simple terms.",
+            "Write a short poem about coding.",
+            "What are the benefits of renewable energy?",
+            "How does photosynthesis work?",
+        ]
+
+        # Create evaluation results file
+        eval_file = self.output_dir / "evaluation_results.jsonl"
+
+        try:
+            from transformers import AutoModelForCausalLM, AutoTokenizer
+
+            # Load DPO model
+            print(f"📦 Loading DPO model from {self.output_dir}...")
+            model = AutoModelForCausalLM.from_pretrained(
+                self.output_dir,
+                torch_dtype=torch.float16,
+                device_map="auto"
+            )
+            tokenizer = AutoTokenizer.from_pretrained(self.output_dir)
+
+            # Generate responses
+            print(f"🎯 Generating responses to {len(test_prompts)} test prompts...")
+            print(f"")
+
+            results = []
+            for i, prompt in enumerate(test_prompts, 1):
+                print(f"   {i}/{len(test_prompts)}: {prompt[:50]}...")
+
+                # Generate response
+                inputs = tokenizer(prompt, return_tensors="pt", truncation=True, max_length=128)
+                inputs = {k: v.to(model.device) for k, v in inputs.items()}
+
+                with torch.no_grad():
+                    outputs = model.generate(
+                        **inputs,
+                        max_new_tokens=150,
+                        temperature=0.7,
+                        do_sample=True,
+                        pad_token_id=tokenizer.eos_token_id
+                    )
+
+                response = tokenizer.decode(outputs[0], skip_special_tokens=True)
+
+                # Calculate basic quality metrics
+                metrics = self._calculate_metrics(prompt, response)
+
+                result = {
+                    "prompt": prompt,
+                    "response": response,
+                    "metrics": metrics
+                }
+                results.append(result)
+
+                print(f"      Length: {len(response.split())} words | Avg word length: {metrics['avg_word_length']:.1f}")
+
+            # Save results
+            with open(eval_file, 'w') as f:
+                for result in results:
+                    f.write(json.dumps(result) + '\n')
+
+            print(f"")
+            print(f"✅ Evaluation complete")
+            print(f"   Results saved to: {eval_file}")
+            print(f"   Total prompts: {len(test_prompts)}")
+            print(f"")
+            print(f"💡 Next: dpo-train compare (to compare with baseline)")
+
+        except ImportError:
+            print(f"❌ Required libraries not installed")
+            print(f"   Install with: pip install transformers torch")
+        except Exception as e:
+            print(f"❌ Evaluation failed: {e}")
 
     def compare(self):
         """Compare DPO vs baseline."""
+        if not self.output_dir.exists():
+            print(f"❌ No trained model found in {self.output_dir}")
+            print(f"   Run: dpo-train train")
+            return
+
+        if not self.config.model_name:
+            print(f"❌ No baseline model configured")
+            print(f"   Initialize project: dpo-train init --model <model>")
+            return
+
         print(f"📊 Comparing DPO vs baseline...")
-        print(f"   This is a placeholder for comparison")
-        print(f"   Implement side-by-side sample generation")
+        print(f"")
+
+        # Test prompts for comparison
+        test_prompts = [
+            "What is the capital of France?",
+            "Explain quantum computing in simple terms.",
+            "Write a short poem about coding.",
+        ]
+
+        # Create comparison results file
+        compare_file = self.output_dir / "comparison_results.jsonl"
+
+        try:
+            from transformers import AutoModelForCausalLM, AutoTokenizer
+            import torch
+
+            # Load baseline model
+            print(f"📦 Loading baseline model: {self.config.model_name}...")
+            baseline_model = AutoModelForCausalLM.from_pretrained(
+                self.config.model_name,
+                torch_dtype=torch.float16,
+                device_map="auto"
+            )
+            baseline_tokenizer = AutoTokenizer.from_pretrained(self.config.model_name)
+            baseline_tokenizer.pad_token = baseline_tokenizer.eos_token
+
+            # Load DPO model
+            print(f"📦 Loading DPO model from {self.output_dir}...")
+            dpo_model = AutoModelForCausalLM.from_pretrained(
+                self.output_dir,
+                torch_dtype=torch.float16,
+                device_map="auto"
+            )
+            dpo_tokenizer = AutoTokenizer.from_pretrained(self.output_dir)
+
+            print(f"")
+            print(f"🎯 Generating side-by-side responses...")
+            print(f"")
+
+            comparisons = []
+            for i, prompt in enumerate(test_prompts, 1):
+                print(f"   {i}/{len(test_prompts)}: {prompt[:50]}...")
+
+                # Generate baseline response
+                baseline_inputs = baseline_tokenizer(prompt, return_tensors="pt", truncation=True, max_length=128)
+                baseline_inputs = {k: v.to(baseline_model.device) for k, v in baseline_inputs.items()}
+
+                with torch.no_grad():
+                    baseline_outputs = baseline_model.generate(
+                        **baseline_inputs,
+                        max_new_tokens=150,
+                        temperature=0.7,
+                        do_sample=True,
+                        pad_token_id=baseline_tokenizer.eos_token_id
+                    )
+                baseline_response = baseline_tokenizer.decode(baseline_outputs[0], skip_special_tokens=True)
+
+                # Generate DPO response
+                dpo_inputs = dpo_tokenizer(prompt, return_tensors="pt", truncation=True, max_length=128)
+                dpo_inputs = {k: v.to(dpo_model.device) for k, v in dpo_inputs.items()}
+
+                with torch.no_grad():
+                    dpo_outputs = dpo_model.generate(
+                        **dpo_inputs,
+                        max_new_tokens=150,
+                        temperature=0.7,
+                        do_sample=True,
+                        pad_token_id=dpo_tokenizer.eos_token_id
+                    )
+                dpo_response = dpo_tokenizer.decode(dpo_outputs[0], skip_special_tokens=True)
+
+                comparison = {
+                    "prompt": prompt,
+                    "baseline_response": baseline_response,
+                    "dpo_response": dpo_response,
+                    "baseline_length": len(baseline_response.split()),
+                    "dpo_length": len(dpo_response.split())
+                }
+                comparisons.append(comparison)
+
+                print(f"      Baseline: {baseline_length} words | DPO: {dpo_length} words")
+
+            # Save comparisons
+            with open(compare_file, 'w') as f:
+                for comparison in comparisons:
+                    f.write(json.dumps(comparison) + '\n')
+
+            print(f"")
+            print(f"✅ Comparison complete")
+            print(f"   Results saved to: {compare_file}")
+            print(f"   Total prompts: {len(test_prompts)}")
+            print(f"")
+            print(f"💡 Review comparison_results.jsonl for side-by-side analysis")
+
+        except ImportError:
+            print(f"❌ Required libraries not installed")
+            print(f"   Install with: pip install transformers torch")
+        except Exception as e:
+            print(f"❌ Comparison failed: {e}")
+
+    def _calculate_metrics(self, prompt: str, response: str) -> Dict:
+        """Calculate basic quality metrics."""
+        words = response.split()
+        if not words:
+            return {"length": 0, "avg_word_length": 0, "exclamation_count": 0, "question_count": 0}
+
+        return {
+            "length": len(words),
+            "avg_word_length": sum(len(w) for w in words) / len(words),
+            "exclamation_count": response.count('!'),
+            "question_count": response.count('?')
+        }
 
     def status(self):
         """Show status."""
